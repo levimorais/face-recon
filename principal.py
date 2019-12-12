@@ -1,75 +1,17 @@
 from leitura import lerArquivos
 import reconhece
-import subprocess
-import cv2
 import face_recognition
-import sys
 
-url = 0
-filePath = "/home/felipe/Área de Trabalho/face-recon/registrados"
+url = "http://192.168.1.2:8080/video"
+filePath = "/home/levi/dev/ap2/face-recon/registrados"
+biodadosConhecidos = []
 
 def cabecalho():
   print("-"*30)
-  print("É Tu? v 2.0")
+  print("FACE RECON")
   print("-"*30)
   print("")
   print("MENU DE OPÇÕES:\n  \n  1.Cadastrar Face\n  2.Reconhecer Face\n  3.Sair")
-
-def cadastrar(nome):
-  camera = cv2.VideoCapture(url)
-  loop = True
-  file = "{}/{}.jpg".format(filePath,nome)
-         
-  print("Digite <ESC> para sair / <s> para Salvar")   
-
-  while(loop):
-    retval, img = camera.read()
-    cv2.imshow('Foto', img)     
-    k = cv2.waitKey(100)
-     
-    if k == 27:      
-      loop = False
-         
-    elif k == ord('s'):   
-      cv2.imwrite(file,img)
-      loop= False
-
-  cv2.destroyAllWindows()
-  camera.release()
-
-  print("\nCadastro efetuado com sucesso.") 
-
-def compararRosto():
-  nFrames = 30
-  camera = cv2.VideoCapture(url)
-  loop = True
-  global resultados, nomeDoReconhecido
-  resultados = []
-  nomeDoReconhecido = ""
-
-  file = "/home/felipe/Área de Trabalho/face-recon/desconhecido/desconhecido.jpg"
-          
-  print("Digite <ESC> para sair / <s> para Salvar")   
-  while(loop):
-    retval, img = camera.read()
-    cv2.imshow("Foto", img)      
-    k = cv2.waitKey(100)
-      
-    if k == 27:        
-      loop = False
-          
-    elif k == ord('s'):    
-      cv2.imwrite(file,img)
-      loop = False
-  
-
-  cv2.destroyAllWindows()
-  camera.release()
-
-  resultados = comparaRostos.coletaBiodados()
-  nomeDoReconhecido = comparaRostos.verificaResultado(resultados)
-
-  print(nomeDoReconhecido)
 
 if __name__ == "__main__":
   opcao = 1
@@ -83,10 +25,33 @@ if __name__ == "__main__":
       while nome == "":
         nome = str(input("\nInsira seu nome por favor: "))
 
-      cadastrar(nome)
+      retorno = reconhece.efetuarCadastro(nome, url)
+      if retorno == False:
+        print("Erro: Não há rosto na imagem")
+      
+      else:
+        print("\nCadastro efetuado com sucesso\n")
     
     elif opcao == 2:
-      compararRosto()
+      retornoDesconhecido = reconhece.capturarDesconhecido(url)
+      if retornoDesconhecido == False:
+        print("Erro: Não há rosto na imagem")
+      
+      else:
+        biodadosConhecidos = reconhece.coletarBiodadosConhecidos()
+        if biodadosConhecidos == False:
+          print("Erro: Não há cadastro no banco de dados")
+
+        else:
+          biodadoDesconhecido = reconhece.coletarBiodadoDesconhecido()
+          listaDeResultados = reconhece.compararFaces(biodadosConhecidos, biodadoDesconhecido)
+          resultadoFinal = reconhece.verificarResultado(listaDeResultados) 
+
+          if resultadoFinal != False:
+            print("Conseguimos reconhecer {}".format(resultadoFinal))
+            
+          else:
+            print("Erro: Não reconhecemos ninguém do banco de dados")
 
     else:
       print("\nOpção inválida")

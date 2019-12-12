@@ -4,45 +4,61 @@ import cv2
 import os
 
 #definindo constantes
-registradosFilePath = "/home/felipe/Área de Trabalho/face-recon/registrados/"
-desconhecidoFilePath = "/home/felipe/Área de Trabalho/face-recon/desconhecido/"
+registradosFilePath = "/home/levi/dev/ap2/face-recon/registrados/"
+desconhecidoFilePath = "/home/levi/dev/ap2/face-recon/desconhecido/desconhecido.jpg"
 listaDeNomes = lerArquivos.leitorDeNomes("{}".format(registradosFilePath))
 listaDeArquivos = lerArquivos.leitorDeArquivos("{}".format(registradosFilePath))
 lista = listaDeArquivos
-url = 0
+biodadosConhecidos = []
 
-def efetuarCadastro(nome):
+def atualizarBanco():
+  global listaDeArquivos, lista, listaDeNomes
+
+  listaDeArquivos = lerArquivos.leitorDeArquivos("{}".format(registradosFilePath))
+  listaDeNomes = lerArquivos.leitorDeNomes("{}".format(registradosFilePath))
+  lista = listaDeArquivos
+
+def efetuarCadastro(nome, url):
+  nome = nome.title()
+  retorno = True
   camera = cv2.VideoCapture(url)
   print("Digite <ESC> para sair / <s> para Salvar")
 
   loop = True
   while loop:
-    retorno, imagem = camera.read()
+    retval, imagem = camera.read()
     cv2.imshow('Efetuando Cadastro', imagem)
     tecla = cv2.waitKey(100)
 
-    #usuário aperta esc
+#usuário aperta esc
     if tecla == 27:
       loop = False
     
-    #usuario aperta s
+#usuario aperta s
     elif tecla == ord('s'):
       cv2.imwrite("{}{}.jpg".format(registradosFilePath, nome), imagem)
       loop = False
 
+#verifica se na foto cadastrada contém uma face
   try:
     imagemNovoCadastro = face_recognition.load_image_file("{}{}.jpg".format(registradosFilePath,nome))
     biodadoNovoCadastro = face_recognition.face_encodings(imagemNovoCadastro)[0]
 
   except IndexError:
-    print("Não foi detectado rosto algum na imagem")
     os.remove("{}{}.jpg".format(registradosFilePath,nome))
-    quit()
+    retorno = False
 
   cv2.destroyAllWindows()
   camera.release()
 
-def capturarDesconhecido():
+  atualizarBanco()
+
+  return retorno
+
+def capturarDesconhecido(url):
+  os.remove("{}".format(desconhecidoFilePath))
+
+  retorno = True
   camera = cv2.VideoCapture(url)
   print("Digite <ESC> para sair / <s> para Salvar")
 
@@ -52,67 +68,81 @@ def capturarDesconhecido():
     cv2.imshow('Foto', imagem)
     tecla = cv2.waitKey(100)
 
-    #usuário aperta esc
+#usuário aperta esc
     if tecla == 27:
       loop = False
     
-    #usuario aperta s
+#usuario aperta s
     elif tecla == ord('s'):
-      cv2.imwrite("{}desconhecido.jpg".format(desconhecidoFilePath), imagem)
+      cv2.imwrite("{}".format(desconhecidoFilePath), imagem)
       loop = False
+
+#verifica se a foto cadastrada contém uma face
+  try:
+    imagemDesconhecido = face_recognition.load_image_file("{}".format(desconhecidoFilePath))
+    biodadoDesconhecido = face_recognition.face_encodings(imagemDesconhecido)[0]
+
+  except IndexError:
+    os.remove("{}".format(desconhecidoFilePath))
+    retorno = False
 
   cv2.destroyAllWindows()
   camera.release()
+  
+  atualizarBanco()
+
+  return retorno
 
 #preenche a lista de biodados conhecidos
-def coletarBiodados():
+def coletarBiodadosConhecidos():
   if len(lista) < 1:
-    return "Erro: não há resistro algum no banco"
+    return False
 
-  if len(lista) <= 1:
-      imagem = face_recognition.load_image_file("{}{}".format(registradosFilePath, lista[0]))
-      biodadosConhecidos.append(face_recognition.face_encodings(imagem)[0])
+  elif len(lista) == 1:
+    imagem = face_recognition.load_image_file("{}{}".format(registradosFilePath, lista[0]))
+    biodadosConhecidos.append(face_recognition.face_encodings(imagem)[0])
 
-      return biodadosConhecidos
+    atualizarBanco()
+
+    return biodadosConhecidos
 
   else:
       indice = lista.pop(0)
       imagem = face_recognition.load_image_file("{}{}".format(registradosFilePath, indice))
       biodadosConhecidos.append(face_recognition.face_encodings(imagem)[0])
 
-  return coletarBiodados()
+  return coletarBiodadosConhecidos()
+
+def coletarBiodadoDesconhecido():
+    try:
+        imagemDesconhecido = face_recognition.load_image_file("{}".format(desconhecidoFilePath))
+        biodadoDesconhecido = face_recognition.face_encodings(imagemDesconhecido)[0]
+    
+    except IndexError:
+        return False
+
+    return biodadoDesconhecido
+
+#dada uma lista de biodaos e um biodado a ser reconhecido, cada elemento da lista é comparado com o desconhecido e o resultado é armazenado
+def compararFaces(biodadosConhecidos, biodadoDesconhecido):
+    resultado = []
+    for i in range(len(biodadosConhecidos)):
+        resultado.append(face_recognition.compare_faces([biodadosConhecidos[i]], biodadoDesconhecido, tolerance = 0.6))
+    
+    return resultado
 
 #verifica se algum rosto foi reconhecido e mostra o resultado
 def verificarResultado(resultado):
-  global indice
-  indice = -1
+  global indiceDoReconhecido
+  indiceDoReconhecido = -1
 
-  index = 0
+  cont = 0
   for i in resultado:
-      for j in i:
-          if j == True:
-              indice = index
-          index += 1
-
-  if indice != -1:
-      return listaDeNomes[indice]
-    
-  else:
-    return "Não foi possível reconhecer nenhum rosto já registrado"
-
-#inicializando variáveis e coletando o biodado da pessoa a ser reconhecida    
-resultado = []
-biodadosConhecidos = []
-nomeDoReconhecido = ""
-imagemNaoRegistrada = face_recognition.load_image_file("{}desconhecido.jpg".format(desconhecidoFilePath))
-biodadoNaoConhecido = face_recognition.face_encodings(imagemNaoRegistrada)[0]
-
-#preenche a lista biodados com os biodados
-coletarBiodados()
-
-for i in range(len(biodadosConhecidos)):
-    resultado.append(face_recognition.compare_faces([biodadosConhecidos[i]], biodadoNaoConhecido, tolerance = 0.6))
-
-#efetua a veriicação do resultado e printa ele
-nomeDoReconhecido = verificarResultado(resultado)
-print(nomeDoReconhecido)
+    for j in i:
+        if j == True:
+            indiceDoReconhecido = cont
+            return listaDeNomes[indiceDoReconhecido]
+                        
+        cont += 1
+  
+  return False
